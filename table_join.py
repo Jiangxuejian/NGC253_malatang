@@ -79,7 +79,7 @@ hcn_hcop = join(hcn, hcop, keys=['x','y'], join_type='left',table_names=['HCN', 
             uniq_col_name='{table_name}_{col_name}')
 co10_co32_hcn_hcop = join(co10_co32, hcn_hcop, keys=['x','y'], join_type='left')
 longtable = join(co10_co32_hcn_hcop, ir, keys=['y','x'], join_type='left')
-longtable.reverse()
+longtable.reverse()     # make x and y descending
 
 #%% - CO ------------------
 
@@ -243,6 +243,29 @@ longtable['CO10_norm_Int'] =  longtable['CO10_Int']/longtable['CO10_Int'].max()
 longtable['CO32_norm_Int'] =  longtable['CO32_Int']/longtable['CO32_Int'].max()
 longtable['HCN_norm_Int']= longtable['HCN_Int']/longtable['HCN_Int'].max()
 longtable['HCOp_norm_Int']= longtable['HCOp_Int']/longtable['HCOp_Int'].max()
+
+#%% Luminosity, SFR and Mass
+fhcn = 354.223 # GHz
+fhcop =356.447 # GHz
+D_n253 = 3.5 # Mpc
+z_n253 = 0.000811 # redshift
+longtable['Lhcn']   = 3.25e7 * 24.4 * longtable['HCN_Int']  * fhcn**-2  * D_n253**2 * (1+z_n253)**-3 
+longtable['Lhcop'] = 3.25e7 * 24.4 * longtable['HCOp_Int'] * fhcop**-2 * D_n253**2 * (1+z_n253)**-3
+longtable['sfr'] = longtable['lir'] * 1.5e-10
+
+
+#%% conversion from L to M of hcn
+bw70 = (60 * u.nm).to(u.Hz, equivalencies=u.spectral()) - (85 * u.nm).to(u.Hz, equivalencies=u.spectral())
+bw70 = 3e8 / 60e-6 /1e9 - 3e8 / 85e-6 /1e9  # bandwidth of 70um in Hz 
+bw100= 3e8 / 85e-6 /1e9 - 3e8 / 125e-6 /1e9  # bandwidth of 100um in Hz 
+I_FIR = longtable['f_70']*1e-23 * bw70 + longtable['f_100']*1e-23 * bw100 /1e-17
+G0 = 4 * np.pi * I_FIR / 1.6e-3 /2.7e-3  #The FUV field strength G0
+hcn['Mhcn'] = hcn['Lhcn'] * 496* G0**-0.24      # conversion factor of M/L(HCN)
+#hcn['Mhcn'] = hcn['Lhcn'] * 10      # conversion factor of M/L(HCN)
+hcop['Mhcop'] = hcop['Lhcop'] * 689* G0**-0.24      # conversion factor of M/L(HCN)
+#hcop['Mhcop'] = hcop['Lhcop'] * 10      # conversion factor of M/L(HCN)
+
+
 
 longtable.write('table_all.dat', format='ascii', overwrite=True)
 

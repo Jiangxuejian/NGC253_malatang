@@ -1,0 +1,357 @@
+---
+title: "Line profiles"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+setwd("C:/Users/dell/OneDrive/works/1601.MALATANG/NGC253/line_ratios/line_profile2")
+table <- read.table("table_all.dat", header = TRUE)
+
+table['log_CO10_err'] = 1/log(10) * table$CO10_err / table$CO10_Int
+table['log_CO32_err'] = 1/log(10) * table$CO32_err / table$CO32_Int
+table['log_HCN_err']  = 1/log(10) * table$HCN_err  / table$HCN_Int
+table['log_HCOp_err'] = 1/log(10) * table$HCOp_err / table$HCOp_Int
+table['log_sfe_hcn_err'] =  1/log(10) * table$sfe_hcn_err  / table$sfe_hcn
+table['log_sfe_hcop_err'] = 1/log(10) * table$sfe_hcop_err / table$sfe_hcop
+
+```
+
+```{r}
+table_disk = table[table$disk_flag == 1,]
+table_offdisk = table[table$disk_flag == 0,]
+table['HCN_det'][is.na(table['HCN_det'])] <- -99
+table['HCOp_det'][is.na(table['HCOp_det'])] <- -99
+
+hcn_det = table[table['HCN_det'] == 1,]  # positive detection
+hcn_det_disk = hcn_det[hcn_det['disk_flag'] == 1,]
+hcn_det_offdisk = hcn_det[hcn_det['disk_flag'] == 0,]
+hcop_det =table[table['HCOp_det'] == 1,]
+hcop_det_disk = hcop_det[hcop_det['disk_flag'] == 1,]
+hcop_det_offdisk = hcop_det[hcop_det['disk_flag'] == 0,]
+hcn_tentative = table[table['HCN_det'] != 1,]  # tentative detection
+hcop_tentative = table[table['HCOp_det'] != 1,]  # tentative detection
+hcnhcop_u_lim= hcn_tentative[hcn_tentative['HCOp_det'] ==1,]      # HCN/HCO+ upper limit
+#hcnhcop_u_lim['hcn_to_hcop']= hcnhcop_u_lim['u_lim']/hcnhcop_u_lim['Int_2']
+hcnhcop_l_lim= hcop_tentative[hcop_tentative['HCN_det'] ==1,]     # HCN/HCO+ lower limit
+#hcnhcop_l_lim['hcn_to_hcop']= hcnhcop_l_lim['Int_1']/hcnhcop_l_lim['u_lim']
+```
+
+```{r}
+#hcnhcop = join(hcn,hcop,keys=['index','x', 'y', 'sep', 'disk_flag', 'lir','elir'])
+
+hcnhcop_det = table[table['HCN_det'] != 0,]                   # non-detections
+hcnhcop_det = hcnhcop_det[hcnhcop_det['HCN_det'] != -99,]     # masked values
+hcnhcop_det = hcnhcop_det[hcnhcop_det['HCOp_det'] != 0,]      # non-detections
+hcnhcop_det = hcnhcop_det[hcnhcop_det['HCOp_det'] != -99,]    # masked values
+
+hcnhcop_det_disk    = hcnhcop_det[hcnhcop_det['disk_flag'] == 1,]
+hcnhcop_det_offdisk = hcnhcop_det[hcnhcop_det['disk_flag'] == 0,]
+library(Hmisc)
+
+```
+
+
+```{r}
+alpha1 = 0.7
+green1 = alpha(rgb(85/255,168/255,104/255),alpha1) # green
+blue1 = rgb(76/255,114/255,176/255) # blue
+red1 = rgb(196/255,78/255,82/255)  # red
+blue2 = rgb(100/255,181/255,205/255) # blue-2
+yellow1 = alpha(rgb(204/255,185/255,116/255),alpha1) # yellow
+purple1 = rgb(129/255,114/255,178/255) # purple
+orange1 = alpha(rgb(255/255,125/255,11/255),alpha1) # orange
+offset_limit = 90
+
+```
+
+
+```{r intensity profile}
+# pdf(file="line_profile_norm-R.pdf",width=8,height=4)
+par(mfrow=c(1,2),
+pty='s',
+mar=c(5,4,2,2)+0.1
+)  		# Set up a two-panel figure
+
+errbar(
+  table_disk$sep, log10(table_disk$CO32_Int), 
+  table_disk$CO32_Int+table_disk$log_CO32_err, 
+  table_disk$CO32_Int-table_disk$log_CO32_err, errbar.col=yellow1,
+  cex=0.5, col=green1,  pch=17, ylab='Log(Intensities)', xlab='Projected distance (arcsec)', 
+  las=1, xlim=c(offset_limit,-offset_limit), ylim = c(-0.9,3.2))
+errbar(
+  table_offdisk$sep, log10(table_offdisk$CO32_Int), 
+  log10(table_offdisk$CO32_Int)+table_offdisk$log_CO32_err,
+  log10(table_offdisk$CO32_Int)-table_offdisk$log_CO32_err,
+  errbar.col=green1,
+  cex=0.5, col=green1,  pch=2, add=T)
+points(table_disk$sep,   log10(table_disk$CO10_Int), 
+#       log10(table_disk$CO10_Int)+table_disk$log_CO10_err,
+#       log10(table_disk$CO10_Int)-table_disk$log_CO10_err,
+       pch=15, cex=0.5, col=yellow1)
+points(table_offdisk$sep,   log10(table_offdisk$CO10_Int), 
+       # log10(table_offdisk$CO10_Int)+table_offdisk$log_CO10_err,
+       # log10(table_offdisk$CO10_Int)-table_offdisk$log_CO10_err,
+       pch=0, cex=0.5, col=yellow1)
+errbar(hcn_det_disk$sep,   log10(hcn_det_disk$HCN_Int),  
+       log10(hcn_det_disk$HCN_Int)+hcn_det_disk$log_HCN_err, 
+       log10(hcn_det_disk$HCN_Int)-hcn_det_disk$log_HCN_err,
+       pch=16, cex=1,col=blue1, errbar.col=blue1, add=T)
+errbar(hcn_det_offdisk$sep,   log10(hcn_det_offdisk$HCN_Int),  
+       log10(hcn_det_offdisk$HCN_Int)+hcn_det_offdisk$log_HCN_err, 
+       log10(hcn_det_offdisk$HCN_Int)-hcn_det_offdisk$log_HCN_err,
+       pch=21, cex=1, col=blue1, errbar.col=blue1, add=T)
+errbar(hcop_det_disk$sep,   log10(hcop_det_disk$HCOp_Int),  
+       log10(hcop_det_disk$HCOp_Int)+hcop_det_disk$log_HCOp_err, 
+       log10(hcop_det_disk$HCOp_Int)-hcop_det_disk$log_HCOp_err,
+       pch=18, cex=1, col=red1, errbar.col=red1, add=T)
+errbar(hcop_det_offdisk$sep,   log10(hcop_det_offdisk$HCOp_Int),  
+       log10(hcop_det_offdisk$HCOp_Int)+hcop_det_offdisk$log_HCOp_err, 
+       log10(hcop_det_offdisk$HCOp_Int)-hcop_det_offdisk$log_HCOp_err,
+       pch=5, cex=0.5, col=red1, errbar.col=red1, add=T)
+points(table_disk$sep, log10(table_disk$lir),       pch=25, cex=0.5,col=orange1, bg=orange1)
+points(table_offdisk$sep, log10(table_offdisk$lir), pch=6, cex=0.5, col=orange1)
+legend(500, 20, c("NGC 4472","NGC 4406", "NGC 4551"), pch=c(20,3,5))
+# points(hcn_det_offdisk$sep,log10(hcn_det_offdisk$HCN_Int), pch=21, cex=1, col=blue1)
+# points(hcop_det_disk$sep,   log10(hcop_det_disk$HCOp_Int),    pch=18, cex=1, col=red1)
+# points(hcop_det_offdisk$sep,log10(hcop_det_offdisk$HCOp_Int), pch= 5, cex=0.5, col=red1)
+
+plot(table_disk$sep, table_disk$CO32_norm_Int, cex=1, col=green1,  pch=17,
+     ylab='(Normalized Intensities)',  xlab='Projected distance (arcsec)',
+     xlim=c(offset_limit,-offset_limit), las=0.5, log='y'
+)
+points(table_offdisk$sep, table_offdisk$CO32_norm_Int, cex=0.5, col=green1, pch=2)
+points(table_disk$sep,   (table_disk$CO10_norm_Int), 
+       pch=15, cex=0.5, col=yellow1)
+points(table_offdisk$sep,   (table_offdisk$CO10_norm_Int), 
+       pch=0, cex=0.5, col=yellow1)
+points(hcn_det_disk$sep,   (hcn_det_disk$HCN_norm_Int),  
+       pch=16, cex=1, col=blue1)
+points(hcn_det_offdisk$sep,   (hcn_det_offdisk$HCN_norm_Int),  
+       pch=21, cex=1, col=blue1)
+points(hcop_det_disk$sep,   (hcop_det_disk$HCOp_norm_Int),  
+       pch=18, cex=1, col=red1)
+points(hcop_det_offdisk$sep,   (hcop_det_offdisk$HCOp_norm_Int),  
+       pch=5, cex=0.5, col=red1)
+points(table_disk$sep, table_disk$lir_norm,       pch=25, cex=0.5,col=orange1, bg=orange1)
+points(table_offdisk$sep, table_offdisk$lir_norm, pch=6, cex=0.5, col=orange1)
+legend(-60, 1, c("CO 1-0",'CO 3-2', 'IR', 'HCN', 'HCO+'), pch=c(15,17,25, 16, 18),
+       cex=0.5,
+       col=c(yellow1, green1, orange1, blue1, red1), 
+       text.col=c(yellow1, green1, orange1, blue1, red1), 
+       pt.bg =c(yellow1, green1, orange1, blue1, red1))
+
+dev.copy2pdf(file='line_profile_norm-R.pdf',width=8,height=4)
+# dev.off()
+```
+
+
+```{r ratio to CO}
+# hcn_det_offdisk = hcn_det_offdisk[is.finite(hcn_det_offdisk$hcn_to_co10),]
+# hcop_det_offdisk = hcop_det_offdisk[is.finite(hcop_det_offdisk$CO10_Int),]
+par(mfrow=c(1,1),
+#pty='s',
+mar=c(5,4,2,2)+0.1
+)  		# Set up a two-panel figure
+x <- hcn_det_disk$sep; y <- hcn_det_disk$hcn_to_co10
+yerr <- hcn_det_disk$hcn_to_co10_err
+errbar(x,  y, y+yerr, y-yerr,
+       errbar.col=blue1, cex=1,
+       col=blue1,  pch=16, ylab='raio to CO', xlab='Projected distance
+       (arcsec)', las=1, xlim=c(offset_limit-25,25-offset_limit))#, ylim = c(-0.9,3.2))
+x <- hcn_det_offdisk$sep; y <- hcn_det_offdisk$hcn_to_co10
+yerr <- hcn_det_offdisk$hcn_to_co10_err
+errbar(x,  y, y+yerr, y-yerr,
+       cex=1, col=blue1, errbar.col=blue1, pch=21, add=T)#, ylim = c(-0.9,3.2))
+x <- hcop_det_disk$sep; y <- hcop_det_disk$hcop_to_co10
+yerr <- hcop_det_disk$hcop_to_co10_err
+errbar(x,  y, y+yerr, y-yerr,
+       errbar.col=red1, cex=1, col=red1,  pch=18,add=T)
+x <- hcop_det_offdisk$sep; y <- hcop_det_offdisk$hcop_to_co10
+yerr <- hcop_det_offdisk$hcop_to_co10_err
+errbar(x,  y, y+yerr, y-yerr,
+       cex=0.7, col=red1, errbar.col=red1, pch=5, add=T)#, ylim = c(-0.9,3.2))
+legend(60, 0.05, c('HCN 4-3/CO 1-0', 'HCO+ 4-3/CO 1-0'), pch=c(16, 18),
+       cex=0.7,
+       col=c(blue1, red1), 
+       text.col=c( blue1, red1), 
+       pt.bg =c( blue1, red1))
+
+dev.copy2pdf(file='ratio_to_co_profile-R.pdf', width=6,height=4)
+```
+
+```{r HCN to HCO+}
+par(mfrow=c(1,1),
+#pty='s',
+mar=c(5,4,2,2)+0.1
+)  		# Set up a two-panel figure
+x <- hcnhcop_det_disk$sep; y <- hcnhcop_det_disk$hcn_to_hcop
+yu <- y+hcnhcop_det_disk$hcn_to_hcop_err ; yl <- y-hcnhcop_det_disk$hcn_to_hcop_err
+errbar(x,  y, yu, yl,
+       col=blue1, errbar.col=blue1, cex=1,  pch=16, ylab='HCN/HCO+', xlab='Projected distance
+       (arcsec)', las=1, xlim=c(offset_limit-25,25-offset_limit))#, ylim = c(-0.9,3.2))
+errbar(hcnhcop_det_offdisk$sep,  hcnhcop_det_offdisk$hcn_to_hcop,
+       hcnhcop_det_offdisk$hcn_to_hcop+hcnhcop_det_offdisk$hcn_to_hcop_err,
+       hcnhcop_det_offdisk$hcn_to_hcop-hcnhcop_det_offdisk$hcn_to_hcop_err,
+       cex=1, col=purple1, errbar.col=purple1, pch=21, add=T)#, ylim = c(-0.9,3.2))
+points(hcnhcop_u_lim$sep+2, hcnhcop_u_lim$HCN_u_lim/hcnhcop_u_lim$HCOp_Int,col=blue2, pch = 20, cex=0.5)
+arrows(hcnhcop_u_lim$sep+2, hcnhcop_u_lim$HCN_u_lim/hcnhcop_u_lim$HCOp_Int,
+       hcnhcop_u_lim$sep+2, hcnhcop_u_lim$HCN_u_lim/hcnhcop_u_lim$HCOp_Int-0.2, 
+       length = 0.05, col=blue2, pch = 20, cex=0.5)
+points(hcnhcop_l_lim$sep-2,  hcnhcop_l_lim$HCN_Int/hcnhcop_l_lim$HCOp_u_lim,col=blue2, pch =20, cex=0.5)
+arrows(hcnhcop_l_lim$sep-2,  hcnhcop_l_lim$HCN_Int/hcnhcop_l_lim$HCOp_u_lim,
+       hcnhcop_l_lim$sep-2,
+       hcnhcop_l_lim$HCN_Int/hcnhcop_l_lim$HCOp_u_lim+0.2, length = 0.05,
+       col=blue2, pch = 20, cex=0.5)
+legend(60, 4.5, c('disk', 'off-disk'), pch=c(16, 21),
+       cex=1,
+       col=c(blue1, purple1), 
+       text.col=c( blue1, purple1), 
+       pt.bg =c( blue1, 'white'))
+
+dev.copy2pdf(file='hcn_hcop_ratio_profile-R.pdf', width=6,height=4)
+```
+
+```{r HCN/CO  and HCO+/CO vs. SFR}
+green1 = alpha(rgb(85/255,168/255,104/255),1) # green
+library(demography)
+library(latex2exp)
+library(extrafont)
+#tikz("zztikz-test.tex",width=15/2.54,height=12/2.54)
+
+par(mfrow=c(1,1),
+#pty='s',
+mar=c(5,5,3,5)+0.1
+)
+x <- hcn_det_disk$sfr; y <- hcn_det_disk$hcn_to_co10
+yerr <- hcn_det_disk$hcn_to_co10_err
+errbar(log10(x),  y, y+yerr, y-yerr,
+       errbar.col=blue1, cex=1,
+       col=blue1,  pch=16, ylab='ratio to CO', 
+       xlab=TeX("log SFR (M_{sun} yr^{-1})"),las=1, ylim = c(0, 0.07))
+x <- hcn_det_offdisk$sfr; y <- hcn_det_offdisk$hcn_to_co10
+yerr <- hcn_det_offdisk$hcn_to_co10_err
+errbar(log10(x),  y, y+yerr, y-yerr,
+       cex=1, col=blue1, errbar.col=blue1, pch=21, add=T)#, ylim = c(-0.9,3.2))
+x <- hcop_det_disk$sfr; y <- hcop_det_disk$hcop_to_co10
+yerr <- hcop_det_disk$hcop_to_co10_err
+errbar(log10(x),  y, y+yerr, y-yerr,
+       errbar.col=red1, cex=1, col=red1,  pch=18,add=T)
+x <- hcop_det_offdisk$sfr; y <- hcop_det_offdisk$hcop_to_co10
+yerr <- hcop_det_offdisk$hcop_to_co10_err
+errbar(log10(x),  y, y+yerr, y-yerr,
+       cex=0.7, col=red1, errbar.col=red1, pch=5, add=T)#, ylim = c(-0.9,3.2))
+# plot 2nd axis
+par(new = TRUE)
+
+x <- table_disk$sfr; y <- table_disk$co32_to_co10
+x <- x[is.finite(x)]; y <- y[is.finite(y)]
+yerr <-table_disk$co32_to_co10_err
+plot(log10(x),  y, #y+yerr, y-yerr, 
+       cex=1, col=green1, pch=17, 
+       axes = FALSE, bty = "n", xlab = "", ylab = "", ylim = c(0, 1.75))#, ylim = c(-0.9,3.2))
+y2.at <- seq(0, 1.75, by = 0.25)
+axis(4, at = y2.at, col=green1, col.axis=green1,las=1)
+mtext("CO 3-2/CO10", side=4, line=3, col=green1)
+
+
+table_temp <- table_offdisk[is.finite(table_offdisk$sfr),]
+table_temp <- table_temp[is.finite(table_temp$co32_to_co10),]
+x <- table_temp$sfr; y <- table_temp$co32_to_co10
+#x <- x[is.finite(x)]; y <- y[is.finite(y)]
+points(log10(x),  y, #y+yerr, y-yerr, 
+       cex=0.5, col=green1, pch=2)
+
+
+legend("topleft", c('CO 3-2/CO 1-0', 'HCN 4-3/CO 1-0', 'HCO+ 4-3/CO 1-0'), pch=c(17, 16, 18),
+       cex=0.7,text.width=0.6,inset=0.01,
+       col=c(green1, blue1, red1), 
+       text.col=c(green1, blue1, red1), 
+       pt.bg =c(green1, blue1, red1))
+
+dev.copy2pdf(file='ratio_to_co_SFR-R.pdf')
+#dev.off()
+```
+
+
+```{r SFE vs. SFR}
+par(mfrow=c(1,1),
+#pty='s',
+mar=c(5,5,3,5)+0.1
+)
+
+x <- hcn_det_disk$sfr; y <- hcn_det_disk$sfe_hcn
+yerr <- hcn_det_disk$log_sfe_hcn_err
+errbar(log10(x),  log10(y), log10(y)+yerr, log10(y)-yerr,
+       errbar.col=blue1, cex=1,
+       col=blue1,  pch=16, ylab=TeX('log SFE (yr^{-1})'), 
+       xlab=TeX("log SFR (M_{sun} yr^{-1})"),las=1, xlim=c(-2.5, 0.6), ylim=c(-10, -6.2) )
+x <- hcn_det_offdisk$sfr; y <- hcn_det_offdisk$sfe_hcn
+yerr <- hcn_det_offdisk$log_sfe_hcn_err
+errbar(log10(x),  log10(y), log10(y)+yerr, log10(y)-yerr,
+       cex=1, col=blue1, errbar.col=blue1, pch=21, add=T)#, ylim = c(-0.9,3.2))
+x <- hcop_det_disk$sfr; y <- hcop_det_disk$sfe_hcop
+yerr <- hcop_det_disk$log_sfe_hcop_err
+errbar(log10(x),  log10(y), log10(y)+yerr, log10(y)-yerr,
+       errbar.col=red1, cex=1, col=red1,  pch=18, add=T)
+x <- hcop_det_offdisk$sfr; y <- hcop_det_offdisk$sfe_hcop
+yerr <- hcop_det_offdisk$log_sfe_hcop_err
+errbar(log10(x),  log10(y), log10(y)+yerr, log10(y)-yerr,
+       cex=0.7, col=red1, errbar.col=red1, pch=5, add=T)#, ylim = c(-0.9,3.2))
+lines(c(-4,1),c(-11,-6))
+legend("topleft", c('HCN 4-3', 'HCO+ 4-3'), pch=c(16, 18),
+       cex=0.7, text.width=0.5,inset=0.01,
+       col=c(blue1, red1), 
+       text.col=c( blue1, red1), 
+       pt.bg =c( blue1, red1))
+
+dev.copy2pdf(file='SFE_SFR-R.pdf')
+
+```
+
+
+```{r fitting}
+co_det = table[c('sep','CO10_Int')]
+# co_det = table[table$sep>=0,]
+co_det['sep'] = abs(co_det['sep'])
+# co_det = co_det[co_det$disk_flag==1,]
+co_det = co_det[is.finite(co_det$CO10_Int),]
+#attach(co_det)
+co_det = co_det[order(co_det$sep),]
+attach(co_det)
+
+#  lg I = lg (I.e *exp(   -(2n-1/3)* (  (r/r.e)^{1/n} - 1))  )
+#       = lg I.e + lg e * {-(2n-1/3) *[(r/r.e)^{1/n} - 1]}
+#       = lg (I.e * 10^{ 1/ln10 * (-(2n-1/3)) *(  (r/r.e)^{1/n} - 1)})
+#       = lg (I.e * )
+#co10_fit <-  nls(log10(CO10_Int) ~ log10(I.e * 10^(-(0.868*n-0.142)*
+co10_fit <-  nls(log10(CO10_Int) ~ log10(I.e * 10^(-1/log(10)*(2*n-1/3)*
+                 ((sep/r.e)^{1/n}-1))), data=co_det, start=list(I.e=60., r.e=60.,n=2.),
+                 model=T, trace=T
+                 )
+summary(co10_fit)
+logLik(co10_fit)
+
+plot(co10_fit$model$sep, log10(co10_fit$model$CO10_Int), pch=20, 
+   xlab="r(arcsec)", ylab="Log (CO Intensities) (K km/s)")
+lines(co10_fit$model$sep, fitted(co10_fit))
+text(30,1.5, expression(-2.5*log10(I_e * 10^(-(0.868*n-0.142)*((radius/r.e)^{1/n}-1))) + 26))
+#dev.off()
+```
+
+```{r}
+plot(co10_fit$model$sep,residuals(co10_fit), xlab="r (arcsec)", 
+   ylab="Residuals", pch=20, cex.lab=1.5, cex.axis=1.5)
+lines(supsmu(co10_fit$model$sep, residuals(co10_fit), span=0.05), 
+   lwd=2)
+```
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.

@@ -77,10 +77,10 @@ co10_co32=join(co10_0, co32, keys=['x','y'], join_type='left',table_names=['CO10
             uniq_col_name='{table_name}_{col_name}')
 hcn_hcop = join(hcn, hcop, keys=['x','y'], join_type='left',table_names=['HCN', 'HCOp'],
             uniq_col_name='{table_name}_{col_name}')
-co10_co32_hcn_hcop = join(co10_co32, hcn_hcop, keys=['x','y'], join_type='left')
+co10_co32_hcn_hcop = join(co10_co32, hcn_hcop, keys=['x','y'], join_type='outer')
 longtable = join(co10_co32_hcn_hcop, ir, keys=['y','x'], join_type='left')
 longtable.reverse()     # make x and y descending
-
+longtable = Table(longtable, masked=True)  # convert to masked table
 #%% - CO ------------------
 
 co32_int = longtable['CO32_Int']
@@ -97,7 +97,7 @@ longtable['CO10_err'] = longtable['CO10_rms'] * np.sqrt(co10_line_win * \
 
 #%% - calculate separation --------------
 # - central coordinate ------
-c_pix_idx = 45 # index of the central pixel
+c_pix_idx = 51 # index of the central pixel
 c_pix = SkyCoord(longtable['ra'][c_pix_idx], longtable['dec'][c_pix_idx],unit=(u.radian, u.radian))
 rotation=(51.07-90)*u.deg
 c_pix.transform_to(SkyOffsetFrame(origin=c_pix,rotation=rotation))
@@ -120,12 +120,15 @@ c_pix.transform_to(SkyOffsetFrame(origin=c_pix,rotation=rotation))
 
 #%% relative coordinates --------------
 longtable['sep'] = longtable['x']*u.arcsec #initialization of a new column
-longtable['radec'] = SkyCoord(longtable['ra'], longtable['dec'],unit=(u.radian, u.radian))
+longtable['radec'] = SkyCoord(longtable['HCN_ra'], longtable['HCN_dec'],unit=(u.radian, u.radian))
 longtable['radec'].transform_to(SkyOffsetFrame(origin=c_pix,rotation=rotation))
 longtable['radec_off'] = longtable['radec'].transform_to(SkyOffsetFrame(origin=c_pix,rotation=rotation))
 
-for i in np.arange(0,91):
-    c_tmp = SkyCoord(longtable['ra'][i], longtable['dec'][i],unit=(u.radian, u.radian))
+for i in np.arange(0,len(longtable)):
+    if longtable['HCN_ra'].mask[i] == 1:
+        longtable['HCN_ra'][i] = longtable['ra'][i]
+        longtable['HCN_dec'][i] = longtable['dec'][i]
+    c_tmp = SkyCoord(longtable['HCN_ra'][i], longtable['HCN_dec'][i],unit=(u.radian, u.radian))
     if longtable['radec_off'][i].lon > 0:
         longtable['sep'][i] = c_tmp.separation(c_pix).arcsec
     else:
@@ -147,6 +150,9 @@ longtable['disk_flag'] = np.where(abs(longtable['radec_off'].lat.arcsec) < 11, 1
 
 
 #%% - ratios --------------------
+longtable['co32_to_co10'] = (longtable['CO32_Int'] / longtable['CO10_Int'])
+longtable['co32_to_co10'].format = '5.5f'
+longtable['co32_to_co10'].unit='--'
 longtable['hcn_to_co32'] = (longtable['HCN_Int'] / longtable['CO32_Int'])
 longtable['hcn_to_co32'].format = '5.5f'
 longtable['hcn_to_co32'].unit='--'
@@ -164,7 +170,8 @@ longtable['hcn_to_hcop'].format = '5.5f'
 longtable['hcn_to_hcop'] = longtable['HCN_Int'] / longtable['HCOp_Int']
 longtable['hcn_to_hcop'].format = '5.5f'
 
-
+longtable['co32_to_co10_err'] = longtable['co32_to_co10'] * np.sqrt((longtable['CO32_err']/
+         longtable['CO32_Int'])**2 + (longtable['CO10_err']/longtable['CO10_Int'])**2)
 longtable['hcn_to_co10_err'] = longtable['hcn_to_co10'] * np.sqrt((longtable['HCN_err']/
          longtable['HCN_Int'])**2 + (longtable['CO10_err']/longtable['CO10_Int'])**2)
 longtable['hcn_to_co32_err'] = longtable['hcn_to_co32'] * np.sqrt((longtable['HCN_err']/
@@ -243,27 +250,47 @@ longtable['CO10_norm_Int'] =  longtable['CO10_Int']/longtable['CO10_Int'].max()
 longtable['CO32_norm_Int'] =  longtable['CO32_Int']/longtable['CO32_Int'].max()
 longtable['HCN_norm_Int']= longtable['HCN_Int']/longtable['HCN_Int'].max()
 longtable['HCOp_norm_Int']= longtable['HCOp_Int']/longtable['HCOp_Int'].max()
+longtable['lir_norm']= longtable['lir']/longtable['lir'].max()
+
 
 #%% Luminosity, SFR and Mass
 fhcn = 354.223 # GHz
 fhcop =356.447 # GHz
 D_n253 = 3.5 # Mpc
 z_n253 = 0.000811 # redshift
-longtable['Lhcn']   = 3.25e7 * 24.4 * longtable['HCN_Int']  * fhcn**-2  * D_n253**2 * (1+z_n253)**-3 
+longtable['Lhcn']   = 3.25e7 * 24.4 * longtable['HCN_Int']  * fhcn**-2  * D_n253**2 * (1+z_n253)**-3
 longtable['Lhcop'] = 3.25e7 * 24.4 * longtable['HCOp_Int'] * fhcop**-2 * D_n253**2 * (1+z_n253)**-3
+longtable['Lhcn_err']   = 3.25e7 * 24.4 * longtable['HCN_err']  * fhcn**-2  * D_n253**2 * (1+z_n253)**-3
+longtable['Lhcop_err'] = 3.25e7 * 24.4 * longtable['HCOp_err'] * fhcop**-2 * D_n253**2 * (1+z_n253)**-3
 longtable['sfr'] = longtable['lir'] * 1.5e-10
+longtable['sfr_err'] = longtable['elir'] * 1.5e-10
 
 
 #%% conversion from L to M of hcn
-bw70 = (60 * u.nm).to(u.Hz, equivalencies=u.spectral()) - (85 * u.nm).to(u.Hz, equivalencies=u.spectral())
-bw70 = 3e8 / 60e-6 /1e9 - 3e8 / 85e-6 /1e9  # bandwidth of 70um in Hz 
-bw100= 3e8 / 85e-6 /1e9 - 3e8 / 125e-6 /1e9  # bandwidth of 100um in Hz 
-I_FIR = longtable['f_70']*1e-23 * bw70 + longtable['f_100']*1e-23 * bw100 /1e-17
+bw70 =((
+        60 * u.micron).to(u.Hz, equivalencies=u.spectral()) - (
+        85 * u.micron).to(u.Hz, equivalencies=u.spectral())) # bandwidth of 70um in Hz 
+bw100 =((
+        85 * u.micron).to(u.Hz, equivalencies=u.spectral()) - (
+        125 * u.micron).to(u.Hz, equivalencies=u.spectral())) # bandwidth of 100um in Hz 
+I_FIR = longtable['flux_p70']*1e-23 * bw70/1e9 + \
+        longtable['flux_p100']*1e-23 * bw100/1e9 /1e-17
 G0 = 4 * np.pi * I_FIR / 1.6e-3 /2.7e-3  #The FUV field strength G0
-hcn['Mhcn'] = hcn['Lhcn'] * 496* G0**-0.24      # conversion factor of M/L(HCN)
+longtable['Mhcn'] = longtable['Lhcn'] * 496* G0**-0.24      # conversion factor of M/L(HCN)
+longtable['Mhcop'] = longtable['Lhcop'] * 689* G0**-0.24      # conversion factor of M/L(HCN)
+longtable['Mhcn_err'] = longtable['Lhcn_err'] * 496* G0**-0.24      # conversion factor of M/L(HCN)
+longtable['Mhcop_err'] = longtable['Lhcop_err'] * 689* G0**-0.24      # conversion factor of M/L(HCN)
+
 #hcn['Mhcn'] = hcn['Lhcn'] * 10      # conversion factor of M/L(HCN)
-hcop['Mhcop'] = hcop['Lhcop'] * 689* G0**-0.24      # conversion factor of M/L(HCN)
 #hcop['Mhcop'] = hcop['Lhcop'] * 10      # conversion factor of M/L(HCN)
+longtable['sfe_hcn'] = longtable['sfr'] / longtable['Mhcn']
+longtable['sfe_hcn_err'] = longtable['sfe_hcn'] * np.sqrt(
+  (longtable['sfr_err']/longtable['sfr'])**2 + 
+  (longtable['Mhcn_err']/longtable['Mhcn'])**2)
+longtable['sfe_hcop'] = longtable['sfr'] / longtable['Mhcop']
+longtable['sfe_hcop_err'] = longtable['sfe_hcop'] * np.sqrt(
+  (longtable['sfr_err']/longtable['sfr'])**2 + 
+  (longtable['Mhcop_err']/longtable['Mhcop'])**2)
 
 
 
